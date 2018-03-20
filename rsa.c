@@ -7,8 +7,8 @@
 
 
 char buffer[1024];
-const int MAX_DIGITS = 50;
-int i,j = 0;
+#define MAX_DIGITS 50
+int i, j = 0;
 
 struct public_key_class{
   long long modulus;
@@ -45,21 +45,21 @@ long long ExtEuclid(long long a, long long b)
 
 long long rsa_modExp(long long b, long long e, long long m)
 {
-  if (b < 0 || e < 0 || m <= 0){
-    exit(1);
-  }
+	if (b < 0 || e < 0 || m <= 0){
+		return 0;
+	}
   b = b % m;
   if(e == 0) return 1;
   if(e == 1) return b;
   if( e % 2 == 0){
     return ( rsa_modExp(b * b % m, e/2, m) % m );
   }
-  if( e % 2 == 1){
+	else{
     return ( b * rsa_modExp(b, (e-1), m) % m );
   }
 
 }
-
+#ifndef DRIVER
 // Calling this function will generate a public and private key and store them in the pointers
 // it is given. 
 void rsa_gen_keys(struct public_key_class *pub, struct private_key_class *priv, char *PRIME_SOURCE_FILE)
@@ -143,55 +143,35 @@ void rsa_gen_keys(struct public_key_class *pub, struct private_key_class *priv, 
   priv->modulus = max;
   priv->exponent = d;
 }
-
-
-long long *rsa_encrypt(const char *message, const unsigned long message_size, 
-                     const struct public_key_class *pub)
+#endif
+int rsa_encrypt(
+	const char *message, const unsigned long message_size,
+	long long  *encrypt, const unsigned long encrypt_size,
+	const struct public_key_class *pub)
 {
-  long long *encrypted = malloc(sizeof(long long)*message_size);
-  if(encrypted == NULL){
-    fprintf(stderr,
-     "Error: Heap allocation failed.\n");
-    return NULL;
-  }
-  long long i = 0;
-  for(i=0; i < message_size; i++){
-    encrypted[i] = rsa_modExp(message[i], pub->exponent, pub->modulus);
-  }
-  return encrypted;
+	if (encrypt_size < sizeof(long long)*message_size){ return 0; }
+
+	long long i = 0;
+	for (i = 0; i < message_size; i++){
+		encrypt[i] = rsa_modExp(message[i], pub->exponent, pub->modulus);
+	}
+	return 1;
 }
 
 
-char *rsa_decrypt(const long long *message, 
-                  const unsigned long message_size, 
-                  const struct private_key_class *priv)
+int rsa_decrypt(
+	char *message, const unsigned long message_size,
+	long long  *encrypt, const unsigned long encrypt_size,
+	const struct private_key_class *priv)
 {
-  if(message_size % sizeof(long long) != 0){
-    fprintf(stderr,
-     "Error: message_size is not divisible by %d, so cannot be output of rsa_encrypt\n", (int)sizeof(long long));
-     return NULL;
-  }
-  // We allocate space to do the decryption (temp) and space for the output as a char array
-  // (decrypted)
-  char *decrypted = malloc(message_size/sizeof(long long));
-  char *temp = malloc(message_size);
-  if((decrypted == NULL) || (temp == NULL)){
-    fprintf(stderr,
-     "Error: Heap allocation failed.\n");
-    return NULL;
-  }
-  // Now we go through each 8-byte chunk and decrypt it.
-  long long i = 0;
-  for(i=0; i < message_size/8; i++){
-    temp[i] = rsa_modExp(message[i], priv->exponent, priv->modulus);
-  }
-  // The result should be a number in the char range, which gives back the original byte.
-  // We put that into decrypted, then return.
-  for(i=0; i < message_size/8; i++){
-    decrypted[i] = temp[i];
-  }
-  free(temp);
-  return decrypted;
+	if (encrypt_size < sizeof(long long)*message_size){ return 0; }
+
+	// Now we go through each 8-byte chunk and decrypt it.
+	long long i = 0;
+	for (i = 0; i < encrypt_size / sizeof(long long); i++){
+		message[i] = (char)rsa_modExp(encrypt[i], priv->exponent, priv->modulus);
+	}
+	return 1;
 }
 
 
